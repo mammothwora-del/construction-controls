@@ -228,7 +228,8 @@ export default function SCurveApp() {
 
   /* ---------- persistence: localStorage autosave + Google Drive sync ---------- */
   const [cloudOpen, setCloudOpen] = useState(false);
-  const [clientId, setClientId] = useState(() => { try { return localStorage.getItem("ccx-clientId") || ""; } catch (e) { return ""; } });
+  const DEFAULT_GOOGLE_CLIENT_ID = "239308933463-c7otd4pgh8otra6rign29p05pbn9c90d.apps.googleusercontent.com";
+  const [clientId, setClientId] = useState(() => { try { return localStorage.getItem("ccx-clientId") || DEFAULT_GOOGLE_CLIENT_ID; } catch (e) { return DEFAULT_GOOGLE_CLIENT_ID; } });
   const [fileId, setFileId] = useState(() => { try { return localStorage.getItem("ccx-fileId") || ""; } catch (e) { return ""; } });
   const [cloud, setCloud] = useState({ signedIn: false, busy: false, status: "" });
   const hydrated = useRef(false);
