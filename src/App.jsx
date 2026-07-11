@@ -233,6 +233,7 @@ export default function SCurveApp() {
   const [fileId, setFileId] = useState(() => { try { return localStorage.getItem("ccx-fileId") || ""; } catch (e) { return ""; } });
   const [cloud, setCloud] = useState({ signedIn: false, busy: false, status: "" });
   const hydrated = useRef(false);
+  const drivingRef = useRef(false);
 
   const snapshot = () => ({ v: 1, project, startDate, periodType, periodCount, mode, curve, cur, cats, actuals, planOv, actualSrc, boqDone, reportPeriod, materials, shops, matFmt, sdFmt });
   const applySnapshot = (s) => {
@@ -266,15 +267,24 @@ export default function SCurveApp() {
     try { setCloud((c) => ({ ...c, busy: true, status: "Connecting\u2026" })); await driveEnsure(); await driveGetToken(clientId, true); setCloud({ signedIn: true, busy: false, status: "Connected to Google Drive." }); }
     catch (e) { setCloud({ signedIn: false, busy: false, status: "Sign-in failed: " + ((e && e.message) || e) }); }
   };
-  const saveToDrive = async () => {
+  const saveToDrive = async (auto) => {
+    if (drivingRef.current) return;
+    drivingRef.current = true;
     try {
-      setCloud((c) => ({ ...c, busy: true, status: "Saving\u2026" })); await driveEnsure(); await driveGetToken(clientId, false);
+      setCloud((c) => ({ ...c, busy: true, status: auto ? "Auto-saving\u2026" : "Saving\u2026" })); await driveEnsure(); await driveGetToken(clientId, false);
       let id = fileId || await driveFind("construction-controls.json");
       const newId = await driveSave(id, "construction-controls.json", snapshot());
       setFileId(newId); try { localStorage.setItem("ccx-fileId", newId); } catch (e) {}
-      setCloud({ signedIn: true, busy: false, status: "Saved to Drive \u00b7 " + new Date().toLocaleTimeString() });
+      setCloud({ signedIn: true, busy: false, status: (auto ? "Auto-saved to Drive \u00b7 " : "Saved to Drive \u00b7 ") + new Date().toLocaleTimeString() });
     } catch (e) { setCloud((c) => ({ ...c, busy: false, status: "Save failed: " + ((e && e.message) || e) })); }
+    finally { drivingRef.current = false; }
   };
+  useEffect(() => {
+    if (!hydrated.current || !cloud.signedIn) return;
+    const t = setTimeout(() => { saveToDrive(true); }, 3000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapJson, cloud.signedIn]);
   const loadFromDrive = async () => {
     try {
       setCloud((c) => ({ ...c, busy: true, status: "Loading\u2026" })); await driveEnsure(); await driveGetToken(clientId, false);
@@ -499,13 +509,13 @@ export default function SCurveApp() {
               <input value={clientId} onChange={(e) => saveClientId(e.target.value)} placeholder="xxxxx.apps.googleusercontent.com" className="sc-in sc-mono" style={{ ...inS, width: "100%", marginTop: 4 }} />
             </div>
             <button onClick={connectDrive} disabled={cloud.busy} style={{ display: "flex", alignItems: "center", gap: 6, background: cloud.signedIn ? "#1f6f43" : C.plan, color: "#fff", border: "none", borderRadius: 8, padding: "9px 13px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}><LogIn size={15} /> {cloud.signedIn ? "Connected" : "Connect Google Drive"}</button>
-            <button onClick={saveToDrive} disabled={cloud.busy} style={{ display: "flex", alignItems: "center", gap: 6, background: C.actual, color: C.ink, border: "none", borderRadius: 8, padding: "9px 13px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}><UploadCloud size={15} /> Save to Drive</button>
+            <button onClick={() => saveToDrive(false)} disabled={cloud.busy} style={{ display: "flex", alignItems: "center", gap: 6, background: C.actual, color: C.ink, border: "none", borderRadius: 8, padding: "9px 13px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}><UploadCloud size={15} /> Save to Drive</button>
             <button onClick={loadFromDrive} disabled={cloud.busy} style={{ display: "flex", alignItems: "center", gap: 6, background: "#2A313B", color: "#fff", border: "1px solid #3A434F", borderRadius: 8, padding: "9px 13px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><DownloadCloud size={15} /> Load from Drive</button>
             <div style={{ width: 1, height: 30, background: "#2A313B" }} />
             <button onClick={exportJSON} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#fff", border: "1px solid #3A434F", borderRadius: 8, padding: "9px 13px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Save size={15} /> Download .json</button>
             <label style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#fff", border: "1px solid #3A434F", borderRadius: 8, padding: "9px 13px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Open .json<input type="file" accept="application/json,.json" style={{ display: "none" }} onChange={(e) => e.target.files[0] && importJSON(e.target.files[0])} /></label>
           </div>
-          <div style={{ marginTop: 8, fontSize: 11.5, color: "#9AA3AE" }}>{cloud.status || "Your work autosaves in this browser. Add your Google OAuth Client ID to sync one JSON file to your Drive \u2014 setup steps are in README.md."}</div>
+          <div style={{ marginTop: 8, fontSize: 11.5, color: "#9AA3AE" }}>{cloud.status || (cloud.signedIn ? "Connected \u2014 changes auto-save to Drive a few seconds after you stop editing." : "Your work autosaves in this browser. Add your Google OAuth Client ID and connect to also auto-save to your Drive \u2014 setup steps are in README.md.")}</div>
         </div>
       )}
 
